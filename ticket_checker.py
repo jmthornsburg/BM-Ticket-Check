@@ -19,7 +19,7 @@ def check_for_tickets_from_html():
         return False
 
     try:
-        response = requests.get(PAGE_URL, headers={'User-Agent': 'My Ticket Checker Script v7.0'})
+        response = requests.get(PAGE_URL, headers={'User-Agent': 'My Ticket Checker Script v8.0'})
         
         if response.status_code != 200:
             print(f"Error: Failed to download page, status code {response.status_code}")
@@ -32,30 +32,37 @@ def check_for_tickets_from_html():
             print("❌ Could not find the embedded data script tag.")
             return False
 
-        data = json.loads(script_tag.string)
-        
-        # This section is now extra robust to prevent errors
+        # Load the raw data from the script tag
+        raw_data = json.loads(script_tag.string)
+
+        # *** NEW: This section correctly handles the data if it's a list ***
+        data_object = None
+        if isinstance(raw_data, list):
+            # If the raw data is a list, find the first dictionary inside it
+            for item in raw_data:
+                if isinstance(item, dict):
+                    data_object = item
+                    break
+        elif isinstance(raw_data, dict):
+            # If it's a dictionary, use it directly
+            data_object = raw_data
+
+        if not data_object:
+            print("❌ Could not find a usable data object inside the JSON.")
+            return False
+
+        # Proceed using the found data_object
         listings = []
-        # Primary data path
-        if data.get('payload') and isinstance(data.get('payload'), dict) and data['payload'].get('results'):
-            search_results = data['payload']['results']
+        if data_object.get('payload') and isinstance(data_object.get('payload'), dict) and data_object['payload'].get('results'):
+            search_results = data_object['payload']['results']
             if search_results and isinstance(search_results[0], dict):
                 listings = search_results[0].get('listings', [])
-        
-        # Fallback for another possible data structure
-        elif data.get('data') and isinstance(data.get('data'), list) and len(data['data']) > 0:
-            first_data_item = data['data'][0]
-            if isinstance(first_data_item, dict):
-                potential_listings = first_data_item.get('listings')
-                if potential_listings:
-                     listings = potential_listings
 
         if not listings:
             print("No tickets currently listed in the expected data structure.")
             return False
 
         for ticket in listings:
-            # Ensure the ticket item itself is a dictionary before proceeding
             if not isinstance(ticket, dict):
                 continue
                 
@@ -79,9 +86,6 @@ def check_for_tickets_from_html():
 
     except Exception as e:
         print(f"An error occurred: {e}")
-        # To help debug further, print the type of data that caused the error
-        if 'data' in locals():
-             print(f"Type of data variable: {type(data)}")
     return False
 
 if __name__ == "__main__":
