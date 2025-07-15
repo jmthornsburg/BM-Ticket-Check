@@ -1,13 +1,10 @@
-name: Check for Tickets
+name: Capture Tixel Data
 
 on:
-  schedule:
-    # Runs the script every 15 minutes
-    - cron: '*/15 * * * *'
   workflow_dispatch:
 
 jobs:
-  build:
+  capture-job:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Repo
@@ -23,8 +20,11 @@ jobs:
           python -m pip install --upgrade pip
           pip install requests beautifulsoup4
 
-      - name: Run the script
-        env:
-          MAX_PRICE: ${{ vars.MAX_PRICE }}
-          NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
+      - name: Run data capture script
         run: python ticket_checker.py
+
+      - name: Upload debug data as an artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-data
+          path: debug_output.json
