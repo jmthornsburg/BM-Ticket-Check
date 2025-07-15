@@ -19,7 +19,7 @@ def check_for_tickets_from_html():
         return False
 
     try:
-        response = requests.get(PAGE_URL, headers={'User-Agent': 'My Ticket Checker Script v9.0 (Definitive)'})
+        response = requests.get(PAGE_URL, headers={'User-Agent': 'My Ticket Checker Script v10.0 (Final)'})
         
         if response.status_code != 200:
             print(f"Error: Failed to download page, status code {response.status_code}")
@@ -32,37 +32,41 @@ def check_for_tickets_from_html():
             print("❌ Could not find the embedded data script tag.")
             return False
 
-        data = json.loads(script_tag.string)
+        raw_data = json.loads(script_tag.string)
 
-        # *** FINAL, CORRECTED DATA PATH ***
-        # The data is inside the 'pinia' state management object.
         data_object = None
-        if isinstance(data, list):
-            for item in data:
+        if isinstance(raw_data, list):
+            for item in raw_data:
                 if isinstance(item, dict) and 'pinia' in item:
                     data_object = item
                     break
-        elif isinstance(data, dict):
-            data_object = data
-        
+        elif isinstance(raw_data, dict):
+            data_object = raw_data
+
         if not (data_object and 'pinia' in data_object and 'EventStore' in data_object['pinia']):
              print("❌ Could not find the 'pinia' or 'EventStore' keys in the data.")
              return False
 
-        listings = data_object['pinia']['EventStore'].get('entity', {}).get('tickets', {}).get('available', [])
+        # *** FINAL FIX: Check if the 'available' data is a list before using it ***
+        listings_data = data_object['pinia']['EventStore'].get('entity', {}).get('tickets', {}).get('available', [])
+        
+        listings = []
+        if isinstance(listings_data, list):
+            listings = listings_data
+        else:
+            print(f"Data for 'available' tickets was not a list (found {type(listings_data)}). Assuming no listings.")
 
         if not listings:
-            print("No tickets currently listed in the 'available' data field.")
+            print("No tickets currently listed.")
             return False
 
         for ticket in listings:
             if not isinstance(ticket, dict):
                 continue
                 
-            price_in_cents = ticket.get('purchasePrice') # Correct key is 'purchasePrice'
+            price_in_cents = ticket.get('purchasePrice')
             if price_in_cents and (price_in_cents / 100) <= MAX_PRICE:
                 price_dollars = price_in_cents / 100
-                # We construct the URL manually as it's not in this part of the data
                 ticket_url = f"https://tixel.com/u/{ticket.get('seller', {}).get('id')}"
                 
                 print(f"🎉 FOUND ONE! Price: ${price_dollars}")
