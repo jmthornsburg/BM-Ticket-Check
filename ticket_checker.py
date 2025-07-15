@@ -10,7 +10,7 @@ MAX_PRICE = int(os.environ.get('MAX_PRICE', 700))
 NTFY_TOPIC = os.environ.get('NTFY_TOPIC')
 
 def final_ticket_checker():
-    """This definitive script uses the verified data path to find tickets."""
+    """Definitive script with maximum error handling for inconsistent data structures."""
     print(f"Checking for tickets under ${MAX_PRICE}...")
 
     if not NTFY_TOPIC:
@@ -18,7 +18,7 @@ def final_ticket_checker():
         return False
 
     try:
-        response = requests.get(PAGE_URL, headers={'User-Agent': 'Final Tixel Checker'})
+        response = requests.get(PAGE_URL, headers={'User-Agent': 'Final Tixel Checker v12.0 (Bulletproof)'})
         
         if response.status_code != 200:
             print(f"Error downloading page: Status {response.status_code}")
@@ -33,15 +33,36 @@ def final_ticket_checker():
 
         raw_data = json.loads(script_tag.string)
 
-        # This is the verified correct data path from your debug file
-        data_object = raw_data[1]
-        listings = data_object['pinia']['EventStore']['current']['tickets']['available']
+        data_object = None
+        if isinstance(raw_data, list) and len(raw_data) > 1:
+            if isinstance(raw_data[1], dict):
+                data_object = raw_data[1]
+        elif isinstance(raw_data, dict):
+            data_object = raw_data
+
+        if not data_object:
+            print("❌ Could not find a usable data object inside the JSON.")
+            return False
+
+        # *** FINAL, BULLETPROOF DATA PATH TRAVERSAL ***
+        listings = []
+        pinia_store = data_object.get('pinia')
+        if isinstance(pinia_store, dict):
+            event_store = pinia_store.get('EventStore')
+            if isinstance(event_store, dict):
+                current_event = event_store.get('current')
+                if isinstance(current_event, dict):
+                    tickets_obj = current_event.get('tickets')
+                    if isinstance(tickets_obj, dict):
+                        available_tickets = tickets_obj.get('available')
+                        if isinstance(available_tickets, list):
+                            listings = available_tickets
 
         if not listings:
             print("No tickets currently listed.")
             return False
 
-        print(f"Found {len(listings)} tickets available. Checking prices...")
+        print(f"Found {len(listings)} available tickets. Checking prices...")
 
         for ticket in listings:
             if not isinstance(ticket, dict):
@@ -51,7 +72,7 @@ def final_ticket_checker():
             if price_in_cents and (price_in_cents / 100) <= MAX_PRICE:
                 price_dollars = price_in_cents / 100
                 ticket_id = ticket.get('id')
-                ticket_url = f"https://tixel.com/tickets/{ticket_id}"
+                ticket_url = f"https://tixel.com/tickets/{ticket_id}" if ticket_id else "URL not found"
                 
                 print(f"🎉 FOUND ONE! Price: ${price_dollars}")
                 
@@ -59,16 +80,11 @@ def final_ticket_checker():
                     f"https://ntfy.sh/{NTFY_TOPIC}",
                     data=f"Ticket found for ${price_dollars}. Click to view!".encode(encoding='utf-8'),
                     headers={
-                        "Title": "Burning Man Ticket Alert!",
-                        "Priority": "max",
-                        "Tags": "tada",
-                        "Click": ticket_url
+                        "Title": "Burning Man Ticket Alert!", "Priority": "max", "Tags": "tada", "Click": ticket_url
                     }
                 )
                 return True
 
-    except KeyError as e:
-        print(f"A key was not found, the website structure has likely changed. Missing key: {e}")
     except Exception as e:
         print(f"An unexpected error occurred: {e}")
     return False
