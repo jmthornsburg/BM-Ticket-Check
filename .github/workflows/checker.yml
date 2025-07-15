@@ -2,7 +2,6 @@ name: Check for Tickets
 
 on:
   schedule:
-    # Runs the script every 15 minutes
     - cron: '*/15 * * * *'
   workflow_dispatch:
 
@@ -28,3 +27,10 @@ jobs:
           MAX_PRICE: ${{ vars.MAX_PRICE }}
           NTFY_TOPIC: ${{ secrets.NTFY_TOPIC }}
         run: python ticket_checker.py
+
+      - name: Upload proof file
+        uses: actions/upload-artifact@v4
+        with:
+          name: tixel-data-proof
+          path: debug_output.json
+          if-no-files-found: ignore
