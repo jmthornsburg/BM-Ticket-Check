@@ -5,7 +5,6 @@ import time
 import os
 
 # --- Configuration ---
-# Values are read from GitHub Actions variables and secrets.
 PAGE_URL = "https://tixel.com/us/festival-tickets/burning-man-tickets"
 MAX_PRICE = int(os.environ.get('MAX_PRICE', 550))
 NTFY_TOPIC = os.environ.get('NTFY_TOPIC')
@@ -20,7 +19,7 @@ def check_for_tickets_from_html():
         return False
 
     try:
-        response = requests.get(PAGE_URL, headers={'User-Agent': 'My Ticket Checker Script v5.0'})
+        response = requests.get(PAGE_URL, headers={'User-Agent': 'My Ticket Checker Script v6.0'})
         
         if response.status_code != 200:
             print(f"Error: Failed to download page, status code {response.status_code}")
@@ -35,20 +34,30 @@ def check_for_tickets_from_html():
 
         data = json.loads(script_tag.string)
 
-        # This section is now more robust to prevent errors
-        search_results = data.get('payload', {}).get('results', [])
-        if not search_results:
-            print("No search results found on the page. The page structure might be empty.")
-            return False
+        # *** This section is now more robust to prevent errors ***
+        # The path to the data can sometimes vary slightly.
+        listings = []
+        if data.get('payload') and data['payload'].get('results'):
+            search_results = data['payload']['results']
+            if search_results and isinstance(search_results[0], dict):
+                listings = search_results[0].get('listings', [])
+        
+        # Fallback for another possible data structure
+        elif data.get('data') and isinstance(data['data'], list) and len(data['data']) > 0:
+            potential_listings = data['data'][0].get('listings')
+            if potential_listings:
+                 listings = potential_listings
 
-        # Safely get the listings from the first search result
-        listings = search_results[0].get('listings', [])
 
         if not listings:
             print("No tickets currently listed.")
             return False
 
         for ticket in listings:
+            # Ensure the ticket item itself is a dictionary before proceeding
+            if not isinstance(ticket, dict):
+                continue
+                
             price_in_cents = ticket.get('price_cents')
             if price_in_cents and (price_in_cents / 100) <= MAX_PRICE:
                 price_dollars = price_in_cents / 100
