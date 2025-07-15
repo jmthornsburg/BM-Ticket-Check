@@ -11,7 +11,7 @@ NTFY_TOPIC = os.environ.get('NTFY_TOPIC')
 
 # --- Main Script ---
 def check_for_tickets_from_html():
-    """Downloads page HTML, extracts embedded JSON, and checks for tickets."""
+    """Downloads the page HTML, extracts the embedded JSON data, and checks for tickets."""
     print(f"Checking for tickets under ${MAX_PRICE}...")
 
     if not NTFY_TOPIC:
@@ -19,7 +19,7 @@ def check_for_tickets_from_html():
         return False
 
     try:
-        response = requests.get(PAGE_URL, headers={'User-Agent': 'My Ticket Checker Script v6.0'})
+        response = requests.get(PAGE_URL, headers={'User-Agent': 'My Ticket Checker Script v7.0'})
         
         if response.status_code != 200:
             print(f"Error: Failed to download page, status code {response.status_code}")
@@ -33,24 +33,25 @@ def check_for_tickets_from_html():
             return False
 
         data = json.loads(script_tag.string)
-
-        # *** This section is now more robust to prevent errors ***
-        # The path to the data can sometimes vary slightly.
+        
+        # This section is now extra robust to prevent errors
         listings = []
-        if data.get('payload') and data['payload'].get('results'):
+        # Primary data path
+        if data.get('payload') and isinstance(data.get('payload'), dict) and data['payload'].get('results'):
             search_results = data['payload']['results']
             if search_results and isinstance(search_results[0], dict):
                 listings = search_results[0].get('listings', [])
         
         # Fallback for another possible data structure
-        elif data.get('data') and isinstance(data['data'], list) and len(data['data']) > 0:
-            potential_listings = data['data'][0].get('listings')
-            if potential_listings:
-                 listings = potential_listings
-
+        elif data.get('data') and isinstance(data.get('data'), list) and len(data['data']) > 0:
+            first_data_item = data['data'][0]
+            if isinstance(first_data_item, dict):
+                potential_listings = first_data_item.get('listings')
+                if potential_listings:
+                     listings = potential_listings
 
         if not listings:
-            print("No tickets currently listed.")
+            print("No tickets currently listed in the expected data structure.")
             return False
 
         for ticket in listings:
@@ -78,6 +79,9 @@ def check_for_tickets_from_html():
 
     except Exception as e:
         print(f"An error occurred: {e}")
+        # To help debug further, print the type of data that caused the error
+        if 'data' in locals():
+             print(f"Type of data variable: {type(data)}")
     return False
 
 if __name__ == "__main__":
